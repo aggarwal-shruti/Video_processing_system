@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ video.title }}</title>
+</head>
+<body>
+    <h2>{{ video.title }}</h2>
+
+    <!-- Video Player -->
+    <video id="video-player" width="640" height="360" controls>
+        <source src="{{ video.video_file.url }}" type="video/mp4">
+        {% if subtitle_url %}
+        <!-- Add closed caption track if subtitle is available and give it an id for manipulation -->
+        <track id="subtitle-track" src="{{ subtitle_url }}" kind="subtitles" srclang="en" label="English" default>
+        {% endif %}
+    </video>
+
+    <!-- Search Bar (Initially disabled until the video is clicked) -->
+    <div style="margin-top: 10px;" id="search-bar" style="display: none;">
+        <label for="search-input">Search subtitles:</label>
+        <input type="text" id="search-input" placeholder="Enter a phrase">
+        <button onclick="searchSubtitles()">Search</button>
+    </div>
+
+  
+
+    <!-- Search Results -->
+    <div id="search-results"></div>
+
+    <script>
+        // Variable to hold video ID
+        const videoId = "{{ video.id }}";  // Make sure to pass the video ID to JavaScript
+
+        // Enable search bar when the video is clicked
+        const videoPlayer = document.getElementById('video-player');
+        videoPlayer.addEventListener('click', () => {
+            document.getElementById('search-bar').style.display = 'block';
+        });
+
+        // Search subtitles function
+        function searchSubtitles() {
+            const query = document.getElementById('search-input').value;
+
+            if (!query) {
+                document.getElementById('search-results').innerHTML = '<p>Please enter a search term.</p>';
+                return;
+            }
+
+            // Send AJAX request to the search view with video_id
+            fetch(`/search/?q=` + encodeURIComponent(query) + `&video_id=` + videoId)
+                .then(response => response.json())
+                .then(data => {
+                    const resultsDiv = document.getElementById('search-results');
+                    resultsDiv.innerHTML = '';
+
+                    if (data.length > 0) {
+                        data.forEach(result => {
+                            const videoTitle = result.video_title;
+                            const timestamp = result.timestamp;
+                            const subtitleText = result.subtitle_text;
+                            const resultItem = document.createElement('div');
+                            resultItem.innerHTML = `
+                                <h4>${videoTitle}</h4>
+                                <p>
+                                    <strong>Timestamp: </strong><a href="javascript:void(0)" onclick="jumpTo(${timestamp})">${formatTimestamp(timestamp)}</a>
+                                </p>
+                                <p>${subtitleText}</p>
+                            `;
+                            resultsDiv.appendChild(resultItem);
+                        });
+                    } else {
+                        resultsDiv.innerHTML = '<p>No results found.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('search-results').innerHTML = '<p>An error occurred while searching.</p>';
+                });
+        }
+
+
+function jumpTo(timestamp) {
+    const videoPlayer = document.getElementById('video-player');
+    
+    // Pause the video to prevent interference when seeking
+    videoPlayer.pause();
+
+    // Function to seek and play the video
+    const seekAndPlay = function() {
+        videoPlayer.currentTime = timestamp;
+        console.log("Jumping to timestamp:", timestamp);
+        videoPlayer.play();
+    };
+
+    // Check if the video is ready to seek
+    if (videoPlayer.readyState >= 3) {
+        seekAndPlay();
+    } else {
+        // Listen for the 'canplay' event if the video is not ready
+        videoPlayer.addEventListener('canplay', function() {
+            seekAndPlay();
+        }, { once: true });
+    }
+}
+
+
+
+        function formatTimestamp(seconds) {
+            const date = new Date(0);
+            date.setSeconds(seconds);
+            return date.toISOString().substr(11, 8); // Format as HH:MM:SS
+        }
+
+
+    </script>
+</body>
+</html>
